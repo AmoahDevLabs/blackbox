@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Repair Zed after a power-loss/corrupted-install failure.
+# Safe to run at any time: if the binary is healthy it exits without changing anything.
+set -euo pipefail
+
+APP_DIR="$HOME/.local/zed.app"
+EDITOR="$APP_DIR/libexec/zed-editor"
+SOCK="$HOME/.local/share/zed/zed-stable.sock"
+SETTINGS="$HOME/.config/zed/settings.json"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP="$HOME/.config/zed/settings.json.bak.$STAMP"
+INSTALLER="$(mktemp /tmp/zed-install.XXXXXX.sh)"
+
+echo "== Zed doctor =="
+
+# 1. Health check: a corrupted binary fails to hash/read.
+if [ -f "$EDITOR" ] && sha256sum "$EDITOR" >/dev/null 2>&1; then
+    echo "Zed binary reads cleanly - no repair needed."
+    "$HOME/.local/bin/zed" --version || true
+    exit 0
+fi
+
+echo "Corruption detected (or Zed is missing). Starting repair..."
+
+# 2. Stop stuck launcher/editor processes.
+pids="$(pgrep -f '[z]ed.app' || true)"
+if [ -n "$pids" ]; then
+    echo "Killing stuck Zed processes: $pids"
+    # shellcheck disable=SC2086
+    kill -9 $pids || true
+fi
+
+# 3. Remove stale IPC socket.
+rm -f "$SOCK"
+
+# 4. Preserve user settings.
+if [ -f "$SETTINGS" ]; then
+    cp -a "$SETTINGS" "$BACKUP"
+    echo "Settings backed up to: $BACKUP"
+fi
+
+# 5. Reinstall from the official installer.
+echo "Downloading and reinstalling Zed..."
+curl -fsSL https://zed.dev/install.sh -o "$INSTALLER"
+sh "$INSTALLER"
+rm -f "$INSTALLER"
+
+# 6. Verify the fresh binary.
+if ! sha256sum "$EDITOR" >/dev/null 2>&1; then
+    echo "ERROR: the newly installed binary is still unreadable." >&2
+    echo "Run: sudo btrfs scrub start /home ; sudo smartctl -a /dev/nvme0n1" >&2
+    exit 1
+fi
+"$HOME/.local/bin/zed" --version
+
+echo "Repair complete. Launching Zed..."
+"$HOME/.local/bin/zed"

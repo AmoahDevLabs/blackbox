@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# All-in-one recovery after a power cut / suspected corruption.
+# 1) Repairs Zed if its binary is damaged (via zed-doctor)
+# 2) Runs btrfs scrub + SMART health check (asks for sudo when possible)
+# 3) Makes sure Zed is running
+set -uo pipefail
+
+LOG_PREFIX="[zed-recover]"
+DOCTOR="$HOME/.local/bin/zed-doctor"
+SOCK="$HOME/.local/share/zed/zed-stable.sock"
+
+say() { echo "$LOG_PREFIX $*"; }
+
+# ---------------------------------------------------------------------------
+# 1. Repair Zed
+# ---------------------------------------------------------------------------
+if [ ! -x "$DOCTOR" ]; then
+    say "ERROR: $DOCTOR not found or not executable." >&2
+    exit 1
+fi
+
+say "Step 1/3: checking/repairing Zed..."
+if ! "$DOCTOR"; then
+    say "ERROR: Zed repair failed. Aborting." >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Filesystem + disk checks
+# ---------------------------------------------------------------------------
+say "Step 2/3: filesystem and disk checks"
+
+run_root_checks() {
+    say "Running btrfs scrub on /home and SMART health on /dev/nvme0n1 ..."
+    sudo /usr/bin/btrfs scrub start /home || say "WARN: could not start scrub"
+    sleep 2
+    sudo /usr/bin/btrfs scrub status /home || true
+    sudo /usr/bin/smartctl -H /dev/nvme0n1 || say "WARN: SMART health check failed"
+}
+
+if command -v sudo >/dev/null 2>&1; then
+    if sudo -n true 2>/dev/null; then
+        # Passwordless sudo available (or already cached).
+        run_root_checks
+    elif [ -t 0 ]; then
+        # Interactive terminal: let sudo prompt for the password.
+        say "Root privileges needed for disk checks - sudo will prompt."
+        if sudo -v; then
+            run_root_checks
+        else
+            say "WARN: sudo authentication failed; skipping disk checks."
+        fi
+    else
+        say "Non-interactive session: cannot prompt for sudo."
+    fi
+else
+    say "WARN: sudo not found; skipping disk checks."
+fi
+
+# Always show the manual fallback so nothing is hidden.
+say "If disk checks were skipped, run these manually in a terminal:"
+echo "  sudo btrfs scrub start /home"
+echo "  sudo btrfs scrub status /home"
+echo "  sudo smartctl -H /dev/nvme0n1"
+
+# ---------------------------------------------------------------------------
+# 3. Make sure Zed is running
+# ---------------------------------------------------------------------------
+say "Step 3/3: ensuring Zed is running..."
+if pgrep -f '[z]ed.app' >/dev/null 2>&1; then
+    say "Zed is already running."
+else
+    rm -f "$SOCK"
+    "$HOME/.local/bin/zed"
+    sleep 3
+    if pgrep -f '[z]ed.app' >/dev/null 2>&1; then
+        say "Zed launched successfully."
+    else
+        say "WARN: Zed did not appear to start; check ~/.local/share/zed/logs/Zed.log" >&2
+    fi
+fi
+
+say "Done."
