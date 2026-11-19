@@ -37,15 +37,39 @@ if command -v coredumpctl >/dev/null 2>&1; then
     coredumpctl --no-pager list opencode 2>/dev/null | tail -5 || echo "  none"
 fi
 
-# 4. Background service state (do not invoke the CLI - it can segfault too)
+# 4. Background service state (avoid the CLI here: headless v2 commands still
+#    extract the native renderer and can leave temp libraries behind)
 if pgrep -f '[o]pencode serve --service' >/dev/null 2>&1; then
     echo "Service:   running (PID $(pgrep -f '[o]pencode serve --service' | head -1))"
 else
     echo "Service:   not running"
 fi
 
+# 5. Bun/OpenTUI native libraries left in /tmp. A full /tmp can prevent the
+#    native renderer from being extracted at all.
+TMP_LIBS="$(find /tmp -maxdepth 1 -type f \( -name '.bun-1000-*.so' -o -name '*opentui*.so' \) -print 2>/dev/null)"
+if [ -n "$TMP_LIBS" ]; then
+    COUNT="$(printf '%s\n' "$TMP_LIBS" | wc -l)"
+    MB="$(printf '%s\n' "$TMP_LIBS" | xargs -r stat -c '%s' | awk '{s+=$1} END {printf "%.1f", s/1048576}')"
+    echo "Temp libs: $COUNT files (${MB} MiB) in /tmp"
+    echo "Temp free: $(df -h /tmp | tail -1 | awk '{print $4}')"
+    if [ "$COUNT" -gt 10 ]; then
+        echo "  Many leftovers can fill /tmp and break TUI startup."
+        echo "  After quitting ALL OpenCode processes: rm -f /tmp/.bun-1000-*.so /tmp/*opentui*.so"
+    fi
+else
+    echo "Temp libs: none"
+fi
+
+if [ -n "${OTUI_NO_NATIVE_RENDER:-}" ]; then
+    echo "Note:      OTUI_NO_NATIVE_RENDER is set but ignored by v2 (removed upstream)."
+fi
+
 echo
-echo "If the TUI segfaults, try:"
-echo "  opencode-safe                 # falls back to mini mode after a crash"
-echo "  OTUI_NO_NATIVE_RENDER=1 opencode"
-echo "  opencode service restart      # if the background service is wedged"
+echo "If the TUI segfaults (SIGSEGV / exit 139):"
+echo "  opencode-safe             # auto-retries in mini mode after a crash"
+echo "  opencode mini             # minimal interface, no native renderer"
+echo "  opencode-safe --mini      # start in mini mode immediately"
+echo "  opencode service restart  # if the background service is wedged"
+echo
+echo "v2.3.2 is the latest v2 release; no upgrade currently fixes this crash."

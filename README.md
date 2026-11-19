@@ -38,13 +38,17 @@ version report and changes nothing.
 
 ### `opencode-doctor`
 Read-only health check for OpenCode. Verifies binary readability, SQLite
-integrity, lists recent core dumps, and shows service state. Never kills
-processes or deletes data.
+integrity, lists recent core dumps, shows service state, and reports leftover
+Bun/OpenTUI libraries in `/tmp`. Never kills processes or deletes data.
 
 ### `opencode-safe`
-Drop-in OpenCode launcher. Runs the normal TUI; if it segfaults (exit 139), it
-automatically relaunches in minimal interface mode so you can keep working.
-Optional: `opencode-safe --no-native` disables the native renderer up front.
+Drop-in OpenCode launcher. Runs the normal TUI; if it dies with SIGSEGV
+(exit 139) or SIGABRT (exit 134), it automatically relaunches in the minimal
+interface. Use `opencode-safe --mini` (or the old `--no-native` alias) to start
+in minimal mode straight away.
+
+**Note:** `OTUI_NO_NATIVE_RENDER` no longer works in v2 — OpenTUI 0.6 removed
+it. The reliable escape hatch is the `mini` interface.
 
 ### `firefox-doctor`
 Diagnoses Firefox "profile is read-only / cannot be loaded" errors. By default
@@ -66,6 +70,32 @@ Firefox profiles on this machine live under `~/.config/mozilla/firefox`
 6. Last resort — create a fresh profile and copy back `places.sqlite`
    (bookmarks/history), `sessionstore.jsonlz4` (open tabs), and `logins.json` +
    `key4.db` (saved passwords).
+
+## If OpenCode segfaults (core dump)
+
+1. Confirm it is not data corruption:
+   ```bash
+   opencode-doctor
+   ```
+   The binary hash matches the official v2.3.2 release and `integrity_check`
+   reports `ok`; the crash is in the native OpenTUI/Bun FFI renderer thread.
+2. Keep working with the minimal interface:
+   ```bash
+   opencode-safe          # normal TUI, auto-falls back after SIGSEGV
+   opencode-safe --mini   # start in mini mode immediately
+   opencode mini          # equivalent direct command
+   ```
+3. If the background service is wedged:
+   ```bash
+   opencode service restart
+   ```
+4. If `/tmp` is nearly full, stale native libraries can stop the renderer from
+   loading. After quitting **all** OpenCode processes:
+   ```bash
+   rm -f /tmp/.bun-1000-*.so /tmp/*opentui*.so
+   ```
+5. v2.3.2 is the latest v2 release, so there is no upgrade that fixes this yet;
+   the mini fallback is the current resolution until upstream ships a fix.
 
 ## Background
 
