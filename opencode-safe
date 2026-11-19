@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Launch OpenCode; if the native TUI segfaults (exit 139), retry in minimal mode.
+# Optional: pass --no-native to disable the native renderer on the first try.
+set +e
+
+if [ "${1:-}" = "--no-native" ]; then
+    shift
+    export OTUI_NO_NATIVE_RENDER=1
+fi
+
+BIN="$HOME/.opencode/bin/opencode"
+
+"$BIN" "$@"
+rc=$?
+
+if [ "$rc" -eq 139 ]; then
+    echo
+    echo "[opencode-safe] Native TUI crashed (SIGSEGV). Re-launching in minimal mode..."
+    echo "[opencode-safe] Your sessions/data are safe; run 'opencode-doctor' to verify."
+    exec "$BIN" mini "$@"
+fi
+
+exit "$rc"

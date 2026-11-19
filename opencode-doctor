@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Read-only health check for OpenCode. Never kills processes or deletes data.
+set -uo pipefail
+
+BIN="$HOME/.opencode/bin/opencode"
+DB="$HOME/.local/share/opencode/opencode.db"
+
+echo "== OpenCode doctor =="
+
+# 1. Binary readability
+if [ -x "$BIN" ] && sha256sum "$BIN" >/dev/null 2>&1; then
+    echo "Binary:    OK - $("$BIN" --version 2>/dev/null)"
+else
+    echo "Binary:    CORRUPT/UNREADABLE - reinstall with: opencode upgrade --force"
+fi
+
+# 2. SQLite state integrity (safe, read-only)
+if [ -f "$DB" ]; then
+    result="$(python3 - "$DB" <<'PY'
+import sqlite3, sys
+try:
+    c = sqlite3.connect("file:" + sys.argv[1] + "?mode=ro", uri=True)
+    r = c.execute("PRAGMA integrity_check").fetchone()[0]
+    print(r)
+except Exception as e:
+    print("ERROR: " + str(e))
+PY
+)"
+    echo "Database:  $result"
+else
+    echo "Database:  missing ($DB)"
+fi
+
+# 3. Recent crashes, if coredumpctl is available
+if command -v coredumpctl >/dev/null 2>&1; then
+    echo "Recent OpenCode core dumps:"
+    coredumpctl --no-pager list opencode 2>/dev/null | tail -5 || echo "  none"
+fi
+
+# 4. Background service state (do not invoke the CLI - it can segfault too)
+if pgrep -f '[o]pencode serve --service' >/dev/null 2>&1; then
+    echo "Service:   running (PID $(pgrep -f '[o]pencode serve --service' | head -1))"
+else
+    echo "Service:   not running"
+fi
+
+echo
+echo "If the TUI segfaults, try:"
+echo "  opencode-safe                 # falls back to mini mode after a crash"
+echo "  OTUI_NO_NATIVE_RENDER=1 opencode"
+echo "  opencode service restart      # if the background service is wedged"

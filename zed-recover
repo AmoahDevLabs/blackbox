@@ -6,7 +6,10 @@
 set -uo pipefail
 
 LOG_PREFIX="[zed-recover]"
-DOCTOR="$HOME/.local/bin/zed-doctor"
+# Resolve this script's real location so it works from a symlink on PATH.
+REAL="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$REAL")"
+DOCTOR="$SCRIPT_DIR/zed-doctor"
 SOCK="$HOME/.local/share/zed/zed-stable.sock"
 
 say() { echo "$LOG_PREFIX $*"; }

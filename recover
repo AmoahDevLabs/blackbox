@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Top-level recovery entrypoint: checks both Zed and OpenCode.
+# Safe to run anytime - each tool knows when it has nothing to do.
+set -uo pipefail
+
+REAL="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$REAL")"
+
+echo "===== Zed ====="
+"$SCRIPT_DIR/zed-recover" || true
+
+echo
+echo "===== OpenCode ====="
+"$SCRIPT_DIR/opencode-doctor" || true
+
+echo
+echo "===== Done ====="
+echo "Commands available on PATH:"
+echo "  zed-recover      - repair Zed + disk checks"
+echo "  zed-doctor       - Zed-only repair"
+echo "  opencode-doctor  - OpenCode health check"
+echo "  opencode-safe    - OpenCode launcher with crash fallback"
