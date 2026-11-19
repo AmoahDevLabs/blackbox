@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Top-level recovery entrypoint: checks both Zed and OpenCode.
+# Top-level recovery entrypoint: checks Zed, OpenCode, and Firefox.
 # Safe to run anytime - each tool knows when it has nothing to do.
 set -uo pipefail
 
@@ -14,6 +14,10 @@ echo "===== OpenCode ====="
 "$SCRIPT_DIR/opencode-doctor" || true
 
 echo
+echo "===== Firefox ====="
+"$SCRIPT_DIR/firefox-doctor" || true
+
+echo
 echo "===== Done ====="
 echo "Commands available on PATH:"
 echo "  blackboxd        - this all-in-one check"
@@ -21,3 +25,4 @@ echo "  zed-recover      - repair Zed + disk checks"
 echo "  zed-doctor       - Zed-only repair"
 echo "  opencode-doctor  - OpenCode health check"
 echo "  opencode-safe    - OpenCode launcher with crash fallback"
+echo "  firefox-doctor   - Firefox read-only profile diagnosis/repair"

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Diagnose (and optionally repair) Firefox "profile is read-only" failures.
+# Read-only by default. Pass --fix only when Firefox is fully closed.
+set -uo pipefail
+
+FIX=0
+[ "${1:-}" = "--fix" ] && FIX=1
+
+say() { echo "$*"; }
+
+# ---------------------------------------------------------------------------
+# Locate profile base directory (XDG config, legacy, and flatpak-style paths)
+# ---------------------------------------------------------------------------
+BASES=()
+for d in \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox" \
+    "$HOME/.mozilla/firefox" \
+    "$HOME/.var/app/org.mozilla.firefox/.mozilla/firefox"; do
+    [ -d "$d" ] && BASES+=("$d")
+done
+
+say "== Firefox doctor =="
+if [ "${#BASES[@]}" -eq 0 ]; then
+    say "No Firefox profile directory found." >&2
+    exit 1
+fi
+BASE="${BASES[0]}"
+say "Profile base: $BASE"
+
+# ---------------------------------------------------------------------------
+# 1. Is the underlying filesystem mounted read-only?
+# ---------------------------------------------------------------------------
+OPTS="$(findmnt -T "$BASE" -o OPTIONS -n 2>/dev/null || true)"
+if printf '%s' "$OPTS" | grep -qw ro; then
+    say "MOUNT:      READ-ONLY"
+    say "  Fix: sudo mount -o remount,rw /home"
+    say "  Then re-run: firefox-doctor"
+else
+    say "MOUNT:      writable"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Can we actually write into the profile directory?
+# ---------------------------------------------------------------------------
+TESTFILE="$BASE/.blackbox-write-test"
+if touch "$TESTFILE" 2>/dev/null; then
+    rm -f "$TESTFILE"
+    say "WRITE TEST: OK"
+else
+    say "WRITE TEST: FAILED"
+    say "  Fix: chmod -R u+rwX \"$BASE\""
+    say "  Or:  sudo chown -R \"$USER\":\"$USER\" \"$BASE\""
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Stale locks (only safe to clear when Firefox is not running)
+# ---------------------------------------------------------------------------
+PIDS="$(pgrep -x firefox || true)"
+if [ -n "$PIDS" ]; then
+    say "PROCESS:    Firefox running (PID $PIDS) - locks are expected, not stale"
+    STALE=0
+else
+    say "PROCESS:    not running"
+    STALE=0
+    for prof in "$BASE"/*.default "$BASE"/*.default-release; do
+        [ -d "$prof" ] || continue
+        if [ -e "$prof/lock" ] || [ -e "$prof/.parentlock" ]; then
+            say "STALE LOCK: $prof"
+            STALE=1
+            if [ "$FIX" -eq 1 ]; then
+                rm -f "$prof/lock" "$prof/.parentlock"
+                say "  removed"
+            fi
+        fi
+    done
+    [ "$STALE" -eq 1 ] && [ "$FIX" -eq 0 ] && say "  Clear with: firefox-doctor --fix"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Permission anomalies on profile directories
+# ---------------------------------------------------------------------------
+BAD_PERMS="$(find "$BASE" -maxdepth 2 -type d ! -perm -u+rwx 2>/dev/null | head -5)"
+if [ -n "$BAD_PERMS" ]; then
+    say "PERMISSIONS: some directories are not user-writable:"
+    printf '  %s\n' $BAD_PERMS
+    if [ "$FIX" -eq 1 ]; then
+        find "$BASE" -maxdepth 3 -exec chmod u+rwX {} + 2>/dev/null
+        say "  permissions repaired"
+    else
+        say "  Fix with: firefox-doctor --fix"
+    fi
+else
+    say "PERMISSIONS: OK"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. SQLite profile database integrity (only when Firefox is closed)
+# ---------------------------------------------------------------------------
+if [ -z "$PIDS" ] && command -v python3 >/dev/null 2>&1; then
+    PROFILES=("$BASE"/*.default "$BASE"/*.default-release)
+    for prof in "${PROFILES[@]}"; do
+        [ -d "$prof" ] || continue
+        for db in places.sqlite cookies.sqlite favicons.sqlite; do
+            [ -f "$prof/$db" ] || continue
+            result="$(python3 - "$prof/$db" <<'PY'
+import sqlite3, sys
+try:
+    c = sqlite3.connect("file:" + sys.argv[1] + "?mode=ro", uri=True)
+    print(c.execute("PRAGMA integrity_check").fetchone()[0])
+except Exception as e:
+    print("ERROR: " + str(e))
+PY
+)"
+            say "DB: $prof/$db -> $result"
+        done
+    done
+fi
+
+# ---------------------------------------------------------------------------
+# Recommendations
+# ---------------------------------------------------------------------------
+say
+say "If Firefox reports 'profile cannot be loaded / read-only':"
+say "  1. Quit Firefox completely, then: firefox-doctor --fix"
+say "  2. If mount was READ-ONLY: sudo mount -o remount,rw /home"
+say "  3. After any power cut: sudo btrfs scrub start /home"
+say "  4. Last resort - new profile, then copy back places.sqlite (bookmarks/history),"
+say "     sessionstore.jsonlz4 (session), logins.json + key4.db (passwords)."

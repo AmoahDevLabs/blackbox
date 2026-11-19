@@ -12,14 +12,15 @@ zed-doctor      -> blackbox/zed-doctor
 zed-recover     -> blackbox/zed-recover
 opencode-doctor -> blackbox/opencode-doctor
 opencode-safe   -> blackbox/opencode-safe
+firefox-doctor  -> blackbox/firefox-doctor
 blackboxd       -> blackbox/blackboxd
 ```
 
 ## Commands
 
 ### `blackboxd`
-Top-level entrypoint. Runs `zed-recover` followed by `opencode-doctor`.
-This replaces the old `recover-all` command.
+Top-level entrypoint. Runs `zed-recover`, `opencode-doctor`, and
+`firefox-doctor`. This replaces the old `recover-all` command.
 
 ### `zed-recover`
 All-in-one recovery after a power cut:
@@ -44,6 +45,27 @@ processes or deletes data.
 Drop-in OpenCode launcher. Runs the normal TUI; if it segfaults (exit 139), it
 automatically relaunches in minimal interface mode so you can keep working.
 Optional: `opencode-safe --no-native` disables the native renderer up front.
+
+### `firefox-doctor`
+Diagnoses Firefox "profile is read-only / cannot be loaded" errors. By default
+it is read-only: it checks the mount flags, a real write test, profile
+permissions, stale lock files (only when Firefox is fully closed), and the
+integrity of `places.sqlite`, `cookies.sqlite`, and `favicons.sqlite`.
+`firefox-doctor --fix` is opt-in and only clears stale locks / fixes permissions
+when Firefox is not running.
+
+Firefox profiles on this machine live under `~/.config/mozilla/firefox`
+(not the legacy `~/.mozilla/firefox` path).
+
+**If Firefox cannot open because of a read-only storage error:**
+1. Quit Firefox completely.
+2. Run `firefox-doctor` to see the cause.
+3. If the mount is read-only: `sudo mount -o remount,rw /home` (then re-run).
+4. If locks/permissions are the issue: `firefox-doctor --fix`.
+5. After any power cut: `sudo btrfs scrub start /home`.
+6. Last resort — create a fresh profile and copy back `places.sqlite`
+   (bookmarks/history), `sessionstore.jsonlz4` (open tabs), and `logins.json` +
+   `key4.db` (saved passwords).
 
 ## Background
 
