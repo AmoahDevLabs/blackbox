@@ -1,19 +1,26 @@
-# recover
+# blackbox
 
 Recovery and diagnostic tools for desktop developer apps after power loss or
-unexpected crashes. Canonical location: `~/.local/bin/recover`.
+unexpected crashes.
+
+Canonical location: `~/.local/bin/blackbox`  
+(`~/.local/bin/recover` remains as a compatibility symlink.)
 
 Thin symlinks in `~/.local/bin` keep every command on `PATH`:
 
 ```
-zed-doctor      -> recover/zed-doctor
-zed-recover     -> recover/zed-recover
-opencode-doctor -> recover/opencode-doctor
-opencode-safe   -> recover/opencode-safe
-recover-all     -> recover/recover
+zed-doctor      -> blackbox/zed-doctor
+zed-recover     -> blackbox/zed-recover
+opencode-doctor -> blackbox/opencode-doctor
+opencode-safe   -> blackbox/opencode-safe
+blackboxd       -> blackbox/blackboxd
 ```
 
 ## Commands
+
+### `blackboxd`
+Top-level entrypoint. Runs `zed-recover` followed by `opencode-doctor`.
+This replaces the old `recover-all` command.
 
 ### `zed-recover`
 All-in-one recovery after a power cut:
@@ -39,9 +46,6 @@ Drop-in OpenCode launcher. Runs the normal TUI; if it segfaults (exit 139), it
 automatically relaunches in minimal interface mode so you can keep working.
 Optional: `opencode-safe --no-native` disables the native renderer up front.
 
-### `recover-all`
-Runs `zed-recover` followed by `opencode-doctor`.
-
 ## Background
 
 - **Zed** failed with `SIGILL` after a power interruption because btrfs
@@ -62,8 +66,16 @@ sudo smartctl -H /dev/nvme0n1
 
 ## Git
 
-This directory is a git repo using an SSH remote, so pushes need no credentials:
+GitHub repo: `AmoahDevLabs/blackbox`  
+SSH remote (pushes need no credentials):
 
 ```bash
-git push
+git@github.com:AmoahDevLabs/blackbox.git
+```
+
+Normal workflow:
+
+```bash
+cd ~/.local/bin/blackbox
+git add -A && git commit -m "..." && git push
 ```

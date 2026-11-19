@@ -16,6 +16,7 @@ echo "===== OpenCode ====="
 echo
 echo "===== Done ====="
 echo "Commands available on PATH:"
+echo "  blackboxd        - this all-in-one check"
 echo "  zed-recover      - repair Zed + disk checks"
 echo "  zed-doctor       - Zed-only repair"
 echo "  opencode-doctor  - OpenCode health check"
