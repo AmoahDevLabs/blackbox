@@ -3,8 +3,7 @@
 Recovery and diagnostic tools for desktop developer apps after power loss or
 unexpected crashes.
 
-Canonical location: `~/.local/bin/blackbox`  
-(`~/.local/bin/recover` remains as a compatibility symlink.)
+Canonical location: `~/.local/bin/blackbox`
 
 Thin symlinks in `~/.local/bin` keep every command on `PATH`:
 
