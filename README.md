@@ -3,20 +3,25 @@
 Recovery and diagnostic tools for desktop developer apps after power loss or
 unexpected crashes.
 
-> **C rewrite:** the `c-rewrite` branch ports these shell tools to one strict
-> C11 binary. See [`C_REWRITE.md`](C_REWRITE.md) for the step-by-step guide.
+> **Current branch (`main`):** the tools are implemented as one strict C11
+> binary. Build with `make`; `make install` installs `~/.local/bin/blackbox-c`
+> and points the command symlinks at it. The original shell scripts are kept on
+> the `bash` branch. See [`C_REWRITE.md`](C_REWRITE.md) for the step-by-step guide.
 
 Canonical location: `~/.local/bin/blackbox`
 
-Thin symlinks in `~/.local/bin` keep every command on `PATH`:
+Thin symlinks in `~/.local/bin` keep every command on `PATH`. Until you run
+`make install`, they still point at the shell scripts in this directory; after
+installation they all point at the single compiled binary:
 
 ```
-zed-doctor      -> blackbox/zed-doctor
-zed-recover     -> blackbox/zed-recover
-opencode-doctor -> blackbox/opencode-doctor
-opencode-safe   -> blackbox/opencode-safe
-firefox-doctor  -> blackbox/firefox-doctor
-blackboxd       -> blackbox/blackboxd
+blackbox-c      -> compiled C11 binary
+blackboxd       -> blackbox-c
+zed-doctor      -> blackbox-c
+zed-recover     -> blackbox-c
+opencode-doctor -> blackbox-c
+opencode-safe   -> blackbox-c
+firefox-doctor  -> blackbox-c
 ```
 
 ## Commands
