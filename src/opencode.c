@@ -1,15 +1,22 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "opencode.h"
+#include "sha256.h"
 #include "util.h"
 
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <unistd.h>
+
+/* Verified against the official v2.3.2 tarball. Override after upgrading with
+ * BLACKBOX_EXPECT_OPENCODE_SHA256=<new hash>. */
+static const char *EXPECTED_OPENCODE_SHA256 =
+    "e6543f6e5c39c40971ba38afd1819ac852c29ac735b5a89065d3d148d47f27ad";
 
 static const char *PYTHON_INTEGRITY =
     "import sqlite3,sys\n"
@@ -31,7 +38,8 @@ static void build_paths(char bin[BB_PATH_MAX], char db[BB_PATH_MAX])
 
 static void check_binary(const char *bin)
 {
-    if (!bb_read_file_clean(bin) || access(bin, X_OK) != 0) {
+    char digest[65];
+    if (!bb_sha256_file_hex(bin, digest) || access(bin, X_OK) != 0) {
         puts("Binary:    CORRUPT/UNREADABLE - reinstall with: opencode upgrade --force");
         return;
     }
@@ -42,6 +50,18 @@ static void check_binary(const char *bin)
         printf("Binary:    OK - %s\n", out);
     } else {
         puts("Binary:    OK - version unavailable");
+    }
+    printf("SHA256:    %s\n", digest);
+
+    const char *expected = getenv("BLACKBOX_EXPECT_OPENCODE_SHA256");
+    if (expected == NULL || expected[0] == '\0') {
+        expected = EXPECTED_OPENCODE_SHA256;
+    }
+    if (strcasecmp(digest, expected) == 0) {
+        puts("Hash:      matches official v2.3.2 release");
+    } else {
+        printf("Hash:      MISMATCH - expected %s\n", expected);
+        puts("           Set BLACKBOX_EXPECT_OPENCODE_SHA256 after a verified upgrade.");
     }
 }
 

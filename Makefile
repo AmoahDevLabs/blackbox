@@ -25,6 +25,7 @@ $(BUILD_DIR):
 check: $(BIN)
 	./$(BIN) --version
 	./$(BIN) --help >/dev/null
+	./$(BIN) sha256 $(BIN) | grep -Eq '^[0-9a-f]{64}  '
 	! ./$(BIN) definitely-not-a-command >/dev/null 2>&1
 
 clean:

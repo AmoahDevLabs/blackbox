@@ -265,19 +265,49 @@ This installs `~/.local/bin/blackbox-c` and points `blackboxd`, `zed-doctor`,
 
 ---
 
+## Step 9 — Native SHA-256 in `src/sha256.c`
+
+No more calling `sha256sum`. The C implementation is a small streaming API:
+
+```c
+bb_sha256_init(&ctx);
+bb_sha256_update(&ctx, buffer, n);
+bb_sha256_final(&ctx, digest);
+bb_sha256_hex(digest, hex);      /* 64 lowercase hex chars + NUL */
+```
+
+`bb_sha256_file()` reads the file in 64 KiB chunks and fails on any read or
+close error — so it replaces the old "read cleanly" probe with a stronger check
+that also produces a verifiable digest.
+
+Usage:
+
+```bash
+./build/blackbox sha256 ~/.opencode/bin/opencode
+```
+
+`opencode-doctor` now prints the digest and compares it against the verified
+official v2.3.2 hash. After a legitimate upgrade, override the expected value:
+
+```bash
+export BLACKBOX_EXPECT_OPENCODE_SHA256=<new official hash>
+```
+
+`zed-doctor` prints the Zed binary digest too, so corruption investigations can
+compare it against a known-good installation.
+
+---
+
 ## Current status
 
-Implemented on `c-rewrite`:
+Implemented:
 
-- one C11 binary with six command identities,
-- Zed doctor + recover,
-- OpenCode doctor + safe launcher,
+- one C11 binary with seven command identities (the six tools plus `sha256`),
+- Zed doctor + recover with digest reporting,
+- OpenCode doctor + safe launcher with hash verification,
 - Firefox doctor (with opt-in `--fix`),
 - strict build and basic checks.
 
 Not yet implemented (deliberately):
 
-- byte-for-byte comparison of the Zed binary hash against a published release
-  hash — the current check reads the whole file to detect I/O errors, matching
-  the shell tool,
 - automatic sudo password handling beyond `sudo -v` in a real terminal.

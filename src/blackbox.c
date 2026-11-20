@@ -2,6 +2,7 @@
 
 #include "firefox.h"
 #include "opencode.h"
+#include "sha256.h"
 #include "util.h"
 #include "zed.h"
 
@@ -29,6 +30,7 @@ static void usage(FILE *out)
     fputs("  opencode-doctor           read-only OpenCode health check\n", out);
     fputs("  opencode-safe [--mini]    launch OpenCode with crash fallback\n", out);
     fputs("  firefox-doctor [--fix]    diagnose Firefox read-only profile errors\n", out);
+    fputs("  sha256 <file>             print a file's SHA-256 digest\n", out);
     fputs("\n", out);
     fputs("You may also call: blackbox-c <command> [args...]\n", out);
 }
@@ -64,7 +66,8 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    const char *name = program_basename(argv[0]);
+    const char *invoked = program_basename(argv[0]);
+    const char *name = invoked;
 
     if (strcmp(name, "blackbox") == 0 || strcmp(name, "blackbox-c") == 0) {
         if (argc == 1) {
@@ -102,6 +105,19 @@ int main(int argc, char **argv)
     if (strcmp(name, "firefox-doctor") == 0) {
         bool fix = argc > 1 && strcmp(argv[1], "--fix") == 0;
         return cmd_firefox_doctor(fix);
+    }
+    if (strcmp(name, "sha256") == 0) {
+        if (argc < 2) {
+            fprintf(stderr, "usage: %s sha256 <file>\n", invoked);
+            return 2;
+        }
+        char hex[65];
+        if (!bb_sha256_file_hex(argv[1], hex)) {
+            fprintf(stderr, "sha256: could not read %s\n", argv[1]);
+            return 1;
+        }
+        printf("%s  %s\n", hex, argv[1]);
+        return 0;
     }
 
     fprintf(stderr, "blackbox: unknown command '%s'\n\n", name);

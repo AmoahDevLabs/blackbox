@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "zed.h"
+#include "sha256.h"
 #include "util.h"
 
 #include <errno.h>
@@ -71,8 +72,10 @@ int cmd_zed_doctor(void)
 
     puts("== Zed doctor ==");
 
-    if (bb_read_file_clean(editor)) {
+    char digest[65];
+    if (bb_sha256_file_hex(editor, digest)) {
         puts("Zed binary reads cleanly - no repair needed.");
+        printf("SHA256: %s\n", digest);
         (void)run_version(launcher);
         return 0;
     }
@@ -113,11 +116,12 @@ int cmd_zed_doctor(void)
         return 1;
     }
 
-    if (!bb_read_file_clean(editor)) {
+    if (!bb_sha256_file_hex(editor, digest)) {
         fprintf(stderr, "ERROR: the newly installed binary is still unreadable.\n");
         fprintf(stderr, "Run: sudo btrfs scrub start /home ; sudo smartctl -a /dev/nvme0n1\n");
         return 1;
     }
+    printf("SHA256: %s\n", digest);
 
     rc = run_version(launcher);
     if (rc != 0) {
