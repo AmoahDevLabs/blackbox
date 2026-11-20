@@ -3,6 +3,9 @@
 Recovery and diagnostic tools for desktop developer apps after power loss or
 unexpected crashes.
 
+> **C rewrite:** the `c-rewrite` branch ports these shell tools to one strict
+> C11 binary. See [`C_REWRITE.md`](C_REWRITE.md) for the step-by-step guide.
+
 Canonical location: `~/.local/bin/blackbox`
 
 Thin symlinks in `~/.local/bin` keep every command on `PATH`:
